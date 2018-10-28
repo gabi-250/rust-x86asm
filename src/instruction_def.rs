@@ -12,7 +12,7 @@ pub struct InstructionDefinition {
     pub f2_prefix: PrefixBehavior,
     pub f3_prefix: PrefixBehavior,
     pub composite_prefix: Option<CompositePrefix>,
-    pub fwait: bool, 
+    pub fwait: bool,
 
     pub two_byte_opcode: bool,
     pub primary_opcode: u8,
@@ -26,7 +26,7 @@ pub struct InstructionDefinition {
     pub allow_merge_mode: bool,
     pub allow_rounding: bool,
     pub allow_sae: bool,
-    
+
     pub operands: [Option<OperandDefinition>; 4],
 
     pub valid_16: bool,
@@ -58,7 +58,7 @@ pub fn load_instructions(map: &mut HashMap<Mnemonic, Vec<&'static InstructionDef
     }
 }
 
-pub fn find_instruction_def(instr: &Instruction, mode: Mode) 
+pub fn find_instruction_def(instr: &Instruction, mode: Mode)
     -> Result<&'static InstructionDefinition, InstructionEncodingError> {
     INSTR_MNEMONIC_MAP.read().unwrap().get(&instr.mnemonic)
         .ok_or(InstructionEncodingError::NoEncoding)
@@ -66,14 +66,14 @@ pub fn find_instruction_def(instr: &Instruction, mode: Mode)
             let matches = list.iter().filter(|enc| enc.matches_instruction(instr, mode));
             let mut sizes = None;
             let mut best = None;
-            
+
             // Look for the shortest matching def. If multiple incompatible defs match,
             // return AmbiguousSize.
             for m in matches {
                 if best.map_or(true, |b| compare_def_length(m, b)) {
                     best = Some(m);
                 }
-                
+
                 let m_sizes = get_op_sizes(m, instr);
                 if sizes.map_or(true, |s| compare_sizes(&s, &m_sizes)) {
                     sizes = Some(m_sizes);
@@ -110,26 +110,26 @@ pub fn find_instruction_def_by_opcode(buffer: &InstructionBuffer, mode: Mode)
         def.fixed_mod_rm_reg.map_or(true, |m| buffer.mod_rm_reg == Some(m)) &&
         // Only compare extensions if one is provided. If an opcode extension is needed to
         // disambiguate, it will be checked below.
-        (def.opcode_ext.is_none() || 
+        (def.opcode_ext.is_none() ||
             buffer.mod_rm_reg.map_or(true, |_| buffer.mod_rm_reg == def.opcode_ext)) &&
         match mode {
             Mode::Real => def.valid_16,
             Mode::Protected => def.valid_32,
             Mode::Long => def.valid_64,
-        } && 
+        } &&
         match def.operand_size_prefix {
             OperandSizePrefixBehavior::Always => buffer.operand_size_prefix,
-            OperandSizePrefixBehavior::RealOnly => if mode == Mode::Real 
+            OperandSizePrefixBehavior::RealOnly => if mode == Mode::Real
                 { buffer.operand_size_prefix } else { !buffer.operand_size_prefix },
             OperandSizePrefixBehavior::NotReal => if mode == Mode::Real
             { !buffer.operand_size_prefix } else { buffer.operand_size_prefix },
             OperandSizePrefixBehavior::Never => !buffer.operand_size_prefix
         } &&
         match def.composite_prefix {
-            Some(CompositePrefix::Rex { size_64: s }) => 
+            Some(CompositePrefix::Rex { size_64: s }) =>
                 buffer.composite_prefix == Some(::instruction_buffer::CompositePrefix::Rex) &&
                 s.map_or(true, |size| size == buffer.operand_size_64),
-            Some(CompositePrefix::Vex { vector_size: vs, we, .. }) => 
+            Some(CompositePrefix::Vex { vector_size: vs, we, .. }) =>
                 buffer.composite_prefix == Some(::instruction_buffer::CompositePrefix::Vex) &&
                 we.map_or(true, |e| buffer.vex_e == Some(e)) &&
                 match vs {
@@ -141,7 +141,7 @@ pub fn find_instruction_def_by_opcode(buffer: &InstructionBuffer, mode: Mode)
                         buffer.vector_len == Some(false) && buffer.vex_l == Some(true),
                     _ => true
                 },
-            Some(CompositePrefix::Evex { vector_size: vs, we, .. }) => 
+            Some(CompositePrefix::Evex { vector_size: vs, we, .. }) =>
                 buffer.composite_prefix == Some(::instruction_buffer::CompositePrefix::Evex) &&
                 we.map_or(true, |e| buffer.vex_e == Some(e)) &&
                 match vs {
@@ -298,7 +298,7 @@ impl OperandDefinition {
                         if code >= 0x10 {
                             if let Some(CompositePrefix::Evex { .. }) = instr_def.composite_prefix { true }
                             else { false }
-                        } else if code >= 0x8 { 
+                        } else if code >= 0x8 {
                             if let Some(CompositePrefix::Evex { .. }) = instr_def.composite_prefix { true }
                             else if let Some(CompositePrefix::Vex { .. }) = instr_def.composite_prefix { true }
                             else { false }
@@ -360,14 +360,14 @@ impl OperandDefinition {
 
         match *op_type {
             OperandType::Reg(reg_type)
-                => if let Some(Operand::Direct(reg)) = *op { 
+                => if let Some(Operand::Direct(reg)) = *op {
                     reg.get_reg_type() == reg_type && size_helper(def_size, op)
                 } else { false },
             OperandType::Mem(s) => op.map(|o| o.is_memory()).unwrap_or(false) &&
                 size_helper(s.unwrap_or(def_size), op),
             OperandType::Imm => op.map(|o| o.is_literal() || o.is_offset() || o.is_far())
                 .unwrap_or(false) && size_helper(def_size, op),
-            OperandType::Offset => unimplemented!(),
+            OperandType::Offset => false,
             OperandType::Rel(op_size) => match *op {
                 Some(Operand::Offset(o, ..)) => op_size.is_valid_literal(o),
                 Some(Operand::Literal8(_)) => true,
